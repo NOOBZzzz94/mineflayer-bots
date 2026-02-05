@@ -33,7 +33,7 @@ const rand = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a
 // =====================
 // BOT COUNT + NAMES
 // =====================
-const BOT_COUNT = 5
+const BOT_COUNT = 4
 
 const BOT_NAMES = Array.from(
   { length: BOT_COUNT },
