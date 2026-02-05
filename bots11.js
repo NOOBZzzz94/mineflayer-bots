@@ -1,6 +1,6 @@
 // ---- Render keepalive HTTP server ----
 require('http')
-  .createServer((req, res) => res.end('ok'))
+  .createServer((req, res) => res.end('bots alive'))
   .listen(process.env.PORT || 3000)
 
 // =====================
@@ -18,9 +18,7 @@ const HOST = 'play.jartexnetwork.com'
 const VERSION = '1.8.9'
 const PASSWORD = 'botpass123'
 
-
 const JOIN_DELAY = 3000
-
 const RECONNECT_DELAY_MIN = 30000
 const RECONNECT_DELAY_MAX = 35000
 
@@ -34,10 +32,9 @@ const rand = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a
 // BOT COUNT + NAMES
 // =====================
 const BOT_COUNT = 4
-
 const BOT_NAMES = Array.from(
   { length: BOT_COUNT },
-  (_, i) => `bridge_bot${11 + i}` // bridge_bot11 → bridge_bot17
+  (_, i) => `bridge_bot${11 + i}`
 )
 
 // =====================
@@ -73,8 +70,10 @@ function startBot (username) {
   const reconnect = () => {
     if (reconnecting) return
     reconnecting = true
+
     const delay = rand(RECONNECT_DELAY_MIN, RECONNECT_DELAY_MAX)
     console.log(`[${username}] 🔄 reconnecting in ${delay / 1000}s`)
+
     setTimeout(() => {
       reconnecting = false
       connect()
@@ -90,7 +89,6 @@ function startBot (username) {
       await sleep(rand(3000, 5000))
       bot.chat(`/login ${PASSWORD}`)
 
-      // wait before attempting server join
       await sleep(rand(6000, 8000))
       attemptServerJoin()
     })
@@ -111,34 +109,25 @@ function startBot (username) {
       }
     })
 
+    // ✅ SERVER SELECTOR HANDLING
     bot.on('windowOpen', async window => {
       if (serverJoined) return
-      if (!window.title.toLowerCase().includes('server selector')) return
 
-      console.log(`[${username}] 🧭 Server Selector opened`)
+      const title = window.title?.toLowerCase() || ''
+      if (!title.includes('server')) return
 
+      console.log(`[${username}] 🧭 Server selector opened`)
       await sleep(rand(1200, 2000))
 
-      // 🔍 try auto-detect "The Bridge"
-      let targetSlot = -1
-
-      window.slots.forEach((item, slot) => {
-        if (!item || !item.name) return
-        const name = item.displayName?.toLowerCase() || ''
-        if (name.includes('the bridge')) {
-          targetSlot = slot
-        }
-      })
-
-      // fallback to slot 23
-      if (targetSlot === -1) targetSlot = 23
-
-      console.log(`[${username}] 🧱 clicking slot ${targetSlot}`)
-      bot.clickWindow(targetSlot, 0, 0)
-
+      const TARGET_SLOT = 23
+      bot.clickWindow(TARGET_SLOT, 0, 0)
       serverJoined = true
 
-      await sleep(rand(4000, 6000))
+      console.log(`[${username}] 🧱 clicked slot ${TARGET_SLOT}`)
+
+      // ✅ WAIT 2s THEN SEND /thebridge
+      await sleep(2000)
+      console.log(`[${username}] 🚀 sending /thebridge`)
       bot.chat('/thebridge')
     })
 
@@ -154,28 +143,8 @@ function startBot (username) {
 
   async function attemptServerJoin () {
     if (serverJoined) return
-
-    console.log(`[${username}] 📡 trying /server`)
+    console.log(`[${username}] 📡 sending /server`)
     bot.chat('/server')
-
-    // fallback to compass after delay
-    setTimeout(async () => {
-      if (serverJoined) return
-
-      console.log(`[${username}] 🧭 fallback to compass`)
-      const compass = bot.inventory.items().find(i =>
-        i.name.includes('compass')
-      )
-
-      if (!compass) {
-        console.log(`[${username}] ❌ no compass found`)
-        return
-      }
-
-      await bot.equip(compass, 'hand')
-      await sleep(rand(800, 1200))
-      bot.activateItem()
-    }, 6000)
   }
 
   connect()
