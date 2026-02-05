@@ -1,6 +1,6 @@
 // ---- Render keepalive HTTP server ----
 require('http')
-  .createServer((req, res) => res.end('bots alive'))
+  .createServer((req, res) => res.end('ok'))
   .listen(process.env.PORT || 3000)
 
 // =====================
@@ -18,7 +18,7 @@ const HOST = 'play.jartexnetwork.com'
 const VERSION = '1.8.9'
 const PASSWORD = 'botpass123'
 
-const JOIN_DELAY = 3000
+const JOIN_DELAY = 10000 // IMPORTANT: slow joins
 const RECONNECT_DELAY_MIN = 30000
 const RECONNECT_DELAY_MAX = 35000
 
@@ -29,9 +29,9 @@ const sleep = ms => new Promise(r => setTimeout(r, ms))
 const rand = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a
 
 // =====================
-// BOT COUNT + NAMES
+// BOT COUNT + NAMES (FREE RENDER SAFE)
 // =====================
-const BOT_COUNT = 4
+const BOT_COUNT = 3
 const BOT_NAMES = Array.from(
   { length: BOT_COUNT },
   (_, i) => `bridge_bot${11 + i}`
@@ -52,6 +52,7 @@ function startBot (username) {
   let reconnecting = false
   let loggedIn = false
   let serverJoined = false
+  let serverAttempted = false
 
   const connect = () => {
     bot = mineflayer.createBot({
@@ -80,19 +81,24 @@ function startBot (username) {
     }, delay)
   }
 
+  const safeReconnect = () => {
+    if (reconnecting) return
+    reconnect()
+  }
+
   const bindEvents = () => {
     bot.once('spawn', async () => {
       console.log(`[${username}] ✅ online`)
       loggedIn = false
       serverJoined = false
+      serverAttempted = false
 
+      // login delay
       await sleep(rand(3000, 5000))
       bot.chat(`/login ${PASSWORD}`)
-
-      await sleep(rand(6000, 8000))
-      attemptServerJoin()
     })
 
+    // login / register handling
     bot.on('message', async msg => {
       const text = msg.toString().toLowerCase()
 
@@ -100,48 +106,72 @@ function startBot (username) {
         loggedIn = true
         await sleep(rand(3000, 5000))
         bot.chat(`/register ${PASSWORD} ${PASSWORD}`)
+        scheduleServerJoin()
       }
 
       if (!loggedIn && text.includes('login')) {
         loggedIn = true
         await sleep(rand(3000, 5000))
         bot.chat(`/login ${PASSWORD}`)
+        scheduleServerJoin()
       }
     })
 
-    // ✅ SERVER SELECTOR HANDLING
+    // handle ALL windows (book + server selector)
     bot.on('windowOpen', async window => {
-      if (serverJoined) return
+      const title = (window.title || '').toLowerCase()
 
-      const title = window.title?.toLowerCase() || ''
+      // 📘 BOOK POPUP (may or may not appear)
+      if (title.includes('book')) {
+        console.log(`[${username}] 📘 book popup detected`)
+        await sleep(2000)
+        bot.closeWindow(window)
+        console.log(`[${username}] 📕 book closed`)
+        return
+      }
+
+      // 🧭 SERVER SELECTOR
+      if (serverJoined) return
       if (!title.includes('server')) return
 
-      console.log(`[${username}] 🧭 Server selector opened`)
-      await sleep(rand(1200, 2000))
+      console.log(`[${username}] 🧭 server selector opened`)
+      await sleep(2000)
 
-      const TARGET_SLOT = 23
-      bot.clickWindow(TARGET_SLOT, 0, 0)
+      console.log(`[${username}] 🧱 clicking slot 23`)
+      bot.clickWindow(23, 0, 0)
+
       serverJoined = true
 
-      console.log(`[${username}] 🧱 clicked slot ${TARGET_SLOT}`)
-
-      // ✅ WAIT 2s THEN SEND /thebridge
+      // send /thebridge AFTER clicking slot
       await sleep(2000)
-      console.log(`[${username}] 🚀 sending /thebridge`)
       bot.chat('/thebridge')
+      console.log(`[${username}] 🚀 /thebridge sent`)
     })
+
+    bot.on('end', safeReconnect)
+    bot.on('kicked', safeReconnect)
 
     bot.on('error', err => {
       if (!err?.code) return
       if (['ECONNRESET', 'ETIMEDOUT', 'ECONNABORTED'].includes(err.code)) return
       console.log(`[${username}] error:`, err.code)
     })
-
-    bot.on('end', reconnect)
-    bot.on('kicked', reconnect)
   }
 
-  async function attemptServerJoin () {
+  // =====================
+  // SERVER JOIN SEQUENCE
+  // =====================
+  function scheduleServerJoin () {
+    if (serverAttempted) return
+    serverAttempted = true
+
+    // wait for book popup (or not)
+    setTimeout(() => {
+      attemptServerJoin()
+    }, rand(12000, 15000)) // IMPORTANT delay
+  }
+
+  function attemptServerJoin () {
     if (serverJoined) return
     console.log(`[${username}] 📡 sending /server`)
     bot.chat('/server')
